@@ -1,0 +1,38 @@
+{
+  "name": "VCT_DS_SQL_TABLE",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_SQL",
+      "type": "LinkedServiceReference"
+    },
+    "parameters": {
+      "Schema": {
+        "type": "string",
+        "defaultValue": "vct_source"
+      },
+      "Table": {
+        "type": "string",
+        "defaultValue": "locations"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "AzureSqlTable",
+    "schema": [],
+    "typeProperties": {
+      "schema": {
+        "value": "@dataset().Schema",
+        "type": "Expression"
+      },
+      "table": {
+        "value": "@dataset().Table",
+        "type": "Expression"
+      }
+    }
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

@@ -1,0 +1,47 @@
+{
+  "name": "VCT_DS_LAKE_PARQUET",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_LAKE",
+      "type": "LinkedServiceReference"
+    },
+    "parameters": {
+      "Container": {
+        "type": "string"
+      },
+      "Directory": {
+        "type": "string"
+      },
+      "File": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "Parquet",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileName": {
+          "value": "@dataset().File",
+          "type": "Expression"
+        },
+        "folderPath": {
+          "value": "@dataset().Directory",
+          "type": "Expression"
+        },
+        "fileSystem": {
+          "value": "@dataset().Container",
+          "type": "Expression"
+        }
+      },
+      "compressionCodec": "snappy"
+    },
+    "schema": []
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

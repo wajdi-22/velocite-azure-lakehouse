@@ -1,0 +1,27 @@
+{
+  "name": "VCT_PIPE_90_TEST_ALERTE",
+  "properties": {
+    "description": "Echec volontaire sans modification des donnees pour verifier Azure Monitor.",
+    "activities": [
+      {
+        "name": "EchecControlePourAlerte",
+        "type": "Fail",
+        "dependsOn": [],
+        "userProperties": [],
+        "typeProperties": {
+          "message": "VCT test volontaire de supervision. Aucune donnee supprimee.",
+          "errorCode": "VCT_TEST_ALERTE"
+        }
+      }
+    ],
+    "concurrency": 1,
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:02Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

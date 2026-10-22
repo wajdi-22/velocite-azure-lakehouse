@@ -1,0 +1,220 @@
+{
+  "name": "VCT_PIPE_10_SQL_VERS_BRUT",
+  "properties": {
+    "description": "Extraction incrementale SQL par modifie_le ; stations en snapshot. Lots distincts et watermarks avances uniquement par le pilote apres publication.",
+    "activities": [
+      {
+        "name": "Extraire_abonnes",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": {
+              "value": "@concat('SELECT * FROM vct_source.abonnes WHERE modifie_le >= DATEADD(SECOND,-60,(SELECT last_success FROM vct_ops.Watermark WHERE entity = ''abonnes'')) AND modifie_le <= CONVERT(datetime2,''',pipeline().parameters.UpperBound,''',126)')",
+              "type": "Expression"
+            },
+            "queryTimeout": "00:20:00",
+            "partitionOption": "None"
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_source",
+              "Table": "abonnes"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_PARQUET",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('sql/abonnes/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "abonnes.parquet"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Extraire_stations",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": "SELECT station_id,nom,capacite FROM vct_source.stations",
+            "queryTimeout": "00:20:00",
+            "partitionOption": "None"
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_source",
+              "Table": "stations"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_PARQUET",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('sql/stations/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "stations.parquet"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Extraire_locations",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": {
+              "value": "@concat('SELECT * FROM vct_source.locations WHERE modifie_le >= DATEADD(SECOND,-60,(SELECT last_success FROM vct_ops.Watermark WHERE entity = ''locations'')) AND modifie_le <= CONVERT(datetime2,''',pipeline().parameters.UpperBound,''',126)')",
+              "type": "Expression"
+            },
+            "queryTimeout": "00:20:00",
+            "partitionOption": "None"
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_source",
+              "Table": "locations"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_PARQUET",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('sql/locations/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "locations.parquet"
+            }
+          }
+        ]
+      }
+    ],
+    "concurrency": 1,
+    "parameters": {
+      "BatchId": {
+        "type": "string"
+      },
+      "UpperBound": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:04Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

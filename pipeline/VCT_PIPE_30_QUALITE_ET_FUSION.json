@@ -1,0 +1,54 @@
+{
+  "name": "VCT_PIPE_30_QUALITE_ET_FUSION",
+  "properties": {
+    "description": "Controles completude, validite, unicite, coherence ; quarantaine avec cause ; pseudonymisation et fusion SQL idempotente avant publication Delta.",
+    "activities": [
+      {
+        "name": "ControlerEtFusionner",
+        "type": "Script",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('EXEC vct_ops.usp_ControlerEtFusionner @BatchId=''',pipeline().parameters.BatchId,'''')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      }
+    ],
+    "concurrency": 1,
+    "parameters": {
+      "BatchId": {
+        "type": "string"
+      },
+      "UpperBound": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:03Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

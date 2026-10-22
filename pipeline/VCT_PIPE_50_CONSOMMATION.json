@@ -1,0 +1,49 @@
+{
+  "name": "VCT_PIPE_50_CONSOMMATION",
+  "properties": {
+    "description": "Agregats quotidiens calcules a partir de curated Delta ; fuseau Europe/Paris ; table de consommation remplacee de facon idempotente.",
+    "activities": [
+      {
+        "name": "ConstruireAgregats",
+        "type": "ExecuteDataFlow",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "dataflow": {
+            "referenceName": "VCT_FLOW_50_AGREGATS_QUOTIDIENS",
+            "type": "DataFlowReference"
+          },
+          "compute": {
+            "coreCount": 8,
+            "computeType": "General"
+          },
+          "traceLevel": "Fine"
+        }
+      }
+    ],
+    "concurrency": 1,
+    "parameters": {
+      "BatchId": {
+        "type": "string"
+      },
+      "UpperBound": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:03Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

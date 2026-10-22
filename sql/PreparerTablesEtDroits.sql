@@ -1,0 +1,23 @@
+SET NOCOUNT ON;
+IF OBJECT_ID('vct_stage.abonnes') IS NULL CREATE TABLE vct_stage.abonnes(abonne_id NVARCHAR(100),nom NVARCHAR(200),email NVARCHAR(240),ville NVARCHAR(80),modifie_le NVARCHAR(100));
+IF OBJECT_ID('vct_stage.stations') IS NULL CREATE TABLE vct_stage.stations(station_id NVARCHAR(100),nom NVARCHAR(200),capacite NVARCHAR(100));
+IF OBJECT_ID('vct_stage.locations') IS NULL CREATE TABLE vct_stage.locations(location_id NVARCHAR(100),abonne_id NVARCHAR(100),station_depart NVARCHAR(100),station_arrivee NVARCHAR(100),debut NVARCHAR(100),fin NVARCHAR(100),montant NVARCHAR(100),modifie_le NVARCHAR(100));
+IF OBJECT_ID('vct_stage.meteo') IS NULL CREATE TABLE vct_stage.meteo(date_meteo NVARCHAR(100),ville NVARCHAR(80),temperature NVARCHAR(100),precipitation NVARCHAR(100));
+IF OBJECT_ID('vct_stage.disponibilite') IS NULL CREATE TABLE vct_stage.disponibilite(stationcode NVARCHAR(80),nom NVARCHAR(240),capacite NVARCHAR(100),velos_disponibles NVARCHAR(100),bornes_disponibles NVARCHAR(100),observe_le NVARCHAR(100));
+IF OBJECT_ID('vct_source.meteo_demo') IS NULL CREATE TABLE vct_source.meteo_demo(date_meteo DATE PRIMARY KEY,ville NVARCHAR(40),temperature DECIMAL(5,2),precipitation DECIMAL(5,2));
+WITH n AS(SELECT TOP(8) ROW_NUMBER() OVER(ORDER BY(SELECT NULL))-1 n FROM sys.all_objects)
+INSERT vct_source.meteo_demo SELECT DATEADD(DAY,-CONVERT(INT,n),CONVERT(DATE,SYSUTCDATETIME())),'Paris',18-n*0.4,n%3 FROM n WHERE NOT EXISTS(SELECT 1 FROM vct_source.meteo_demo m WHERE m.date_meteo=DATEADD(DAY,-CONVERT(INT,n),CONVERT(DATE,SYSUTCDATETIME())));
+IF OBJECT_ID('vct_curated.abonnes') IS NULL CREATE TABLE vct_curated.abonnes(abonne_token VARCHAR(36) PRIMARY KEY,ville NVARCHAR(40),modifie_le DATETIME2,latest_run VARCHAR(64));
+IF OBJECT_ID('vct_curated.stations') IS NULL CREATE TABLE vct_curated.stations(station_id INT PRIMARY KEY,nom NVARCHAR(80),capacite INT,latest_run VARCHAR(64));
+IF OBJECT_ID('vct_curated.locations') IS NULL CREATE TABLE vct_curated.locations(location_id INT PRIMARY KEY,abonne_token VARCHAR(36),station_depart INT,station_arrivee INT,debut DATETIME2,fin DATETIME2,montant DECIMAL(6,2),modifie_le DATETIME2,latest_run VARCHAR(64));
+IF OBJECT_ID('vct_curated.meteo') IS NULL CREATE TABLE vct_curated.meteo(date_meteo DATE,ville NVARCHAR(40),temperature DECIMAL(5,2),precipitation DECIMAL(5,2),latest_run VARCHAR(64),PRIMARY KEY(date_meteo,ville));
+IF OBJECT_ID('vct_curated.disponibilite') IS NULL CREATE TABLE vct_curated.disponibilite(stationcode NVARCHAR(80),nom NVARCHAR(240),capacite INT,velos_disponibles INT,bornes_disponibles INT,observe_le DATETIME2,latest_run VARCHAR(64),PRIMARY KEY(stationcode,observe_le));
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('vct_source.locations') AND name='IX_VCT_locations_modifie') CREATE INDEX IX_VCT_locations_modifie ON vct_source.locations(modifie_le);
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('vct_source.abonnes') AND name='IX_VCT_abonnes_modifie') CREATE INDEX IX_VCT_abonnes_modifie ON vct_source.abonnes(modifie_le);
+IF DATABASE_PRINCIPAL_ID('vct_analyst') IS NULL CREATE ROLE vct_analyst;
+GRANT SELECT ON SCHEMA::vct_mart TO vct_analyst;
+DENY SELECT ON SCHEMA::vct_source TO vct_analyst;
+DENY SELECT ON SCHEMA::vct_stage TO vct_analyst;
+DENY SELECT ON SCHEMA::vct_private TO vct_analyst;
+DENY SELECT ON SCHEMA::vct_ops TO vct_analyst;
+SELECT 'VCT model ready' status;

@@ -1,0 +1,406 @@
+{
+  "name": "VCT_PIPE_15_SOURCES_EXTERNES",
+  "properties": {
+    "description": "CSV meteo de demonstration depose dans inbox ; archive binaire raw. API publique Velib limitee a 50 stations sur deux pages de 25 ; source externe independante du referentiel fictif.",
+    "activities": [
+      {
+        "name": "PaginerAPIStations",
+        "type": "ForEach",
+        "dependsOn": [],
+        "userProperties": [],
+        "typeProperties": {
+          "items": {
+            "value": "@createArray(0,25)",
+            "type": "Expression"
+          },
+          "isSequential": true,
+          "activities": [
+            {
+              "name": "ArchiverPageAPI",
+              "type": "Copy",
+              "dependsOn": [],
+              "policy": {
+                "timeout": "0.00:30:00",
+                "retry": 2,
+                "retryIntervalInSeconds": 30,
+                "secureOutput": false,
+                "secureInput": false
+              },
+              "userProperties": [],
+              "typeProperties": {
+                "source": {
+                  "type": "RestSource",
+                  "httpRequestTimeout": "00:01:40",
+                  "requestInterval": "00.00:00:01.000",
+                  "requestMethod": "GET"
+                },
+                "sink": {
+                  "type": "JsonSink",
+                  "storeSettings": {
+                    "type": "AzureBlobFSWriteSettings"
+                  },
+                  "formatSettings": {
+                    "type": "JsonWriteSettings"
+                  }
+                },
+                "enableStaging": false
+              },
+              "inputs": [
+                {
+                  "referenceName": "VCT_DS_STATIONS_REST",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "Offset": {
+                      "value": "@item()",
+                      "type": "Expression"
+                    }
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "referenceName": "VCT_DS_LAKE_JSON",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "Container": "vct-raw",
+                    "Directory": {
+                      "value": "@concat('api/stations/lot_id=',pipeline().parameters.BatchId,'/offset=',string(item()))",
+                      "type": "Expression"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "VerifierDepotMeteo",
+        "type": "GetMetadata",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "dataset": {
+            "referenceName": "VCT_DS_LAKE_BINARY",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-inbox",
+              "Directory": "meteo",
+              "File": "meteo_demo.csv"
+            }
+          },
+          "fieldList": [
+            "exists"
+          ],
+          "storeSettings": {
+            "type": "AzureBlobFSReadSettings",
+            "recursive": false
+          },
+          "formatSettings": {
+            "type": "BinaryReadSettings"
+          }
+        }
+      },
+      {
+        "name": "ControlerPresenceMeteo",
+        "type": "IfCondition",
+        "dependsOn": [
+          {
+            "activity": "VerifierDepotMeteo",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "userProperties": [],
+        "typeProperties": {
+          "expression": {
+            "value": "@activity('VerifierDepotMeteo').output.exists",
+            "type": "Expression"
+          },
+          "ifFalseActivities": [
+            {
+              "name": "SignalerFichierManquant",
+              "type": "Fail",
+              "dependsOn": [],
+              "userProperties": [],
+              "typeProperties": {
+                "message": "Le fichier meteo attendu est absent. Publication bloquee ; corriger le depot puis rejouer.",
+                "errorCode": "VCT_METEO_ABSENTE"
+              }
+            }
+          ],
+          "ifTrueActivities": [
+            {
+              "name": "ArchiverCSVOriginal",
+              "type": "Copy",
+              "dependsOn": [],
+              "policy": {
+                "timeout": "0.00:30:00",
+                "retry": 2,
+                "retryIntervalInSeconds": 30,
+                "secureOutput": false,
+                "secureInput": false
+              },
+              "userProperties": [],
+              "typeProperties": {
+                "source": {
+                  "type": "BinarySource",
+                  "storeSettings": {
+                    "type": "AzureBlobFSReadSettings",
+                    "recursive": false
+                  },
+                  "formatSettings": {
+                    "type": "BinaryReadSettings"
+                  }
+                },
+                "sink": {
+                  "type": "BinarySink",
+                  "storeSettings": {
+                    "type": "AzureBlobFSWriteSettings"
+                  }
+                },
+                "enableStaging": false
+              },
+              "inputs": [
+                {
+                  "referenceName": "VCT_DS_LAKE_BINARY",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "Container": "vct-inbox",
+                    "Directory": "meteo",
+                    "File": "meteo_demo.csv"
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "referenceName": "VCT_DS_LAKE_BINARY",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "Container": "vct-raw",
+                    "Directory": {
+                      "value": "@concat('csv/meteo/lot_id=',pipeline().parameters.BatchId)",
+                      "type": "Expression"
+                    },
+                    "File": "meteo.csv"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "ChargerStageMeteo",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "ControlerPresenceMeteo",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "DelimitedTextSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "DelimitedTextReadSettings"
+            }
+          },
+          "sink": {
+            "type": "AzureSqlSink",
+            "preCopyScript": "TRUNCATE TABLE vct_stage.meteo",
+            "writeBehavior": "insert"
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_CSV",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('csv/meteo/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "meteo.csv"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_stage",
+              "Table": "meteo"
+            }
+          }
+        ]
+      },
+      {
+        "name": "ChargerStageDisponibilite",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "PaginerAPIStations",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "JsonSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": true,
+              "wildcardFileName": "response.json"
+            },
+            "formatSettings": {
+              "type": "JsonReadSettings"
+            }
+          },
+          "sink": {
+            "type": "AzureSqlSink",
+            "preCopyScript": "TRUNCATE TABLE vct_stage.disponibilite",
+            "writeBehavior": "insert"
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "mappings": [
+              {
+                "source": {
+                  "path": "['stationcode']"
+                },
+                "sink": {
+                  "name": "stationcode"
+                }
+              },
+              {
+                "source": {
+                  "path": "['name']"
+                },
+                "sink": {
+                  "name": "nom"
+                }
+              },
+              {
+                "source": {
+                  "path": "['capacity']"
+                },
+                "sink": {
+                  "name": "capacite"
+                }
+              },
+              {
+                "source": {
+                  "path": "['numbikesavailable']"
+                },
+                "sink": {
+                  "name": "velos_disponibles"
+                }
+              },
+              {
+                "source": {
+                  "path": "['numdocksavailable']"
+                },
+                "sink": {
+                  "name": "bornes_disponibles"
+                }
+              },
+              {
+                "source": {
+                  "path": "['duedate']"
+                },
+                "sink": {
+                  "name": "observe_le"
+                }
+              }
+            ],
+            "collectionReference": "$['results']",
+            "mapComplexValuesToString": true
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_JSON",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('api/stations/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              }
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_stage",
+              "Table": "disponibilite"
+            }
+          }
+        ]
+      }
+    ],
+    "concurrency": 1,
+    "parameters": {
+      "BatchId": {
+        "type": "string"
+      },
+      "UpperBound": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ]
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

@@ -1,0 +1,89 @@
+{
+  "name": "VCT_FLOW_50_AGREGATS_QUOTIDIENS",
+  "properties": {
+    "description": "Lit les locations Delta et reconstruit les agregats quotidiens sur la date de debut Europe/Paris. Remplacement deterministe de la petite table de consommation.",
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "type": "MappingDataFlow",
+    "typeProperties": {
+      "sources": [
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "locations"
+        }
+      ],
+      "sinks": [
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "quotidien"
+        }
+      ],
+      "transformations": [
+        {
+          "name": "dateMetier"
+        },
+        {
+          "name": "activite"
+        }
+      ],
+      "scriptLines": [
+        "source(output(",
+        "          location_id as integer,",
+        "          abonne_token as string,",
+        "          station_depart as integer,",
+        "          station_arrivee as integer,",
+        "          debut as timestamp,",
+        "          fin as timestamp,",
+        "          montant as decimal(6,2),",
+        "          modifie_le as timestamp",
+        "     ),",
+        "     allowSchemaDrift: false,",
+        "     validateSchema: true,",
+        "     ignoreNoFilesFound: false,",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-curated',",
+        "     folderPath: 'locations') ~> locations",
+        "locations derive(jour = toDate(fromUTC(debut,'Europe/Paris')),",
+        "          duree_minutes = (toLong(fin)-toLong(debut))/60000.0) ~> dateMetier",
+        "dateMetier aggregate(groupBy(jour),",
+        "     nombre_locations = count(),",
+        "          recette_totale = sum(montant),",
+        "          abonnes_actifs = countDistinct(abonne_token),",
+        "          duree_moyenne_minutes = avg(duree_minutes)) ~> activite",
+        "activite sink(allowSchemaDrift: false,",
+        "     validateSchema: false,",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-consumption',",
+        "     folderPath: 'activite_quotidienne',",
+        "     overwrite: true,",
+        "     mergeSchema: false,",
+        "     autoCompact: true,",
+        "     optimizedWrite: true,",
+        "     vacuum: 0,",
+        "     deletable: false,",
+        "     insertable: true,",
+        "     updateable: false,",
+        "     upsertable: false,",
+        "     umask: 0022,",
+        "     preCommands: [],",
+        "     postCommands: [],",
+        "     skipDuplicateMapInputs: true,",
+        "     skipDuplicateMapOutputs: true,",
+        "     mapColumn(",
+        "          jour,",
+        "          nombre_locations,",
+        "          recette_totale,",
+        "          abonnes_actifs,",
+        "          duree_moyenne_minutes",
+        "     )) ~> quotidien"
+      ]
+    }
+  }
+}

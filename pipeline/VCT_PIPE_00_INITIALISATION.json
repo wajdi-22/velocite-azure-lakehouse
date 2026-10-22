@@ -1,0 +1,178 @@
+{
+  "name": "VCT_PIPE_00_INITIALISATION",
+  "properties": {
+    "description": "Initialisation Velocite. Schemas vct_* separes de Retail360. Creation et seed rejouables, sans suppression des donnees existantes.",
+    "activities": [
+      {
+        "name": "InitialiserJeuVelocite",
+        "type": "Script",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": "IF SCHEMA_ID('vct_source') IS NULL EXEC('CREATE SCHEMA vct_source');\nSET NOCOUNT ON;\nIF SCHEMA_ID('vct_ops') IS NULL EXEC('CREATE SCHEMA vct_ops');\nIF SCHEMA_ID('vct_stage') IS NULL EXEC('CREATE SCHEMA vct_stage');\nIF SCHEMA_ID('vct_curated') IS NULL EXEC('CREATE SCHEMA vct_curated');\nIF SCHEMA_ID('vct_mart') IS NULL EXEC('CREATE SCHEMA vct_mart');\nIF SCHEMA_ID('vct_private') IS NULL EXEC('CREATE SCHEMA vct_private');\nIF OBJECT_ID('vct_source.abonnes') IS NULL CREATE TABLE vct_source.abonnes(abonne_id INT PRIMARY KEY,nom NVARCHAR(80),email NVARCHAR(120),ville NVARCHAR(40),modifie_le DATETIME2);\nIF OBJECT_ID('vct_source.stations') IS NULL CREATE TABLE vct_source.stations(station_id INT PRIMARY KEY,nom NVARCHAR(80),capacite INT);\nIF OBJECT_ID('vct_source.locations') IS NULL CREATE TABLE vct_source.locations(location_id INT PRIMARY KEY,abonne_id INT,station_depart INT,station_arrivee INT,debut DATETIME2,fin DATETIME2,montant DECIMAL(6,2),modifie_le DATETIME2);\nDECLARE @now DATETIME2=SYSUTCDATETIME();\nIF NOT EXISTS(SELECT 1 FROM vct_source.abonnes) BEGIN\nWITH n AS(SELECT TOP(5000) ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) AS n FROM sys.all_objects a CROSS JOIN sys.all_objects b)\nINSERT vct_source.abonnes SELECT n,CONCAT('Nom',n),CONCAT('abonne',n,'@mail.test'),CHOOSE(n%4+1,'Paris','Lyon','Lille','Nantes'),DATEADD(MINUTE,-CONVERT(INT,n),@now) FROM n;\nEND;\nIF NOT EXISTS(SELECT 1 FROM vct_source.stations) BEGIN\nWITH n AS(SELECT TOP(50) ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) AS n FROM sys.all_objects)\nINSERT vct_source.stations SELECT n,CONCAT('Station ',n),10+n%30 FROM n;\nEND;\nIF NOT EXISTS(SELECT 1 FROM vct_source.locations) BEGIN\nWITH n AS(SELECT TOP(200000) ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) AS n FROM sys.all_objects a CROSS JOIN sys.all_objects b)\nINSERT vct_source.locations SELECT n,n%5000+1,n%50+1,(n*7)%50+1,DATEADD(MINUTE,-CONVERT(INT,n),@now),DATEADD(MINUTE,10-CONVERT(INT,n),@now),1+n%9,DATEADD(MINUTE,-CONVERT(INT,n),@now) FROM n;\nEND;\nIF OBJECT_ID('vct_ops.Watermark') IS NULL CREATE TABLE vct_ops.Watermark(entity SYSNAME PRIMARY KEY,last_success DATETIME2 NOT NULL);\nINSERT vct_ops.Watermark SELECT v.entity,CAST('1900-01-01' AS DATETIME2) FROM (VALUES('abonnes'),('locations'))v(entity) WHERE NOT EXISTS(SELECT 1 FROM vct_ops.Watermark w WHERE w.entity=v.entity);\nIF OBJECT_ID('vct_ops.RunLog') IS NULL CREATE TABLE vct_ops.RunLog(run_id VARCHAR(64) PRIMARY KEY,started_at DATETIME2,ended_at DATETIME2,status VARCHAR(30),upper_bound DATETIME2,rows_read INT NULL,rows_valid INT NULL,rows_rejected INT NULL,details NVARCHAR(1000));\nIF OBJECT_ID('vct_ops.QualityMetric') IS NULL CREATE TABLE vct_ops.QualityMetric(run_id VARCHAR(64),entity SYSNAME,dimension VARCHAR(40),checked_rows INT,failed_rows INT,measured_at DATETIME2 DEFAULT SYSUTCDATETIME());\nIF OBJECT_ID('vct_ops.Quarantine') IS NULL CREATE TABLE vct_ops.Quarantine(run_id VARCHAR(64),entity SYSNAME,business_key VARCHAR(100),reason NVARCHAR(500),payload NVARCHAR(MAX),created_at DATETIME2 DEFAULT SYSUTCDATETIME(),PRIMARY KEY(run_id,entity,business_key));\nIF OBJECT_ID('vct_private.SubscriberMap') IS NULL CREATE TABLE vct_private.SubscriberMap(abonne_id INT PRIMARY KEY,abonne_token UNIQUEIDENTIFIER DEFAULT NEWID());\nIF OBJECT_ID('vct_private.ErasureLedger') IS NULL CREATE TABLE vct_private.ErasureLedger(abonne_id INT PRIMARY KEY,erased_at DATETIME2 DEFAULT SYSUTCDATETIME());\nSELECT DB_NAME() database_name,'abonnes' entity,COUNT_BIG(*) row_count FROM vct_source.abonnes UNION ALL SELECT DB_NAME(),'stations',COUNT_BIG(*) FROM vct_source.stations UNION ALL SELECT DB_NAME(),'locations',COUNT_BIG(*) FROM vct_source.locations;\nSELECT entity,last_success FROM vct_ops.Watermark;"
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "PreparerTablesEtDroits",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "InitialiserJeuVelocite",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": "SET NOCOUNT ON;\nIF OBJECT_ID('vct_stage.abonnes') IS NULL CREATE TABLE vct_stage.abonnes(abonne_id NVARCHAR(100),nom NVARCHAR(200),email NVARCHAR(240),ville NVARCHAR(80),modifie_le NVARCHAR(100));\nIF OBJECT_ID('vct_stage.stations') IS NULL CREATE TABLE vct_stage.stations(station_id NVARCHAR(100),nom NVARCHAR(200),capacite NVARCHAR(100));\nIF OBJECT_ID('vct_stage.locations') IS NULL CREATE TABLE vct_stage.locations(location_id NVARCHAR(100),abonne_id NVARCHAR(100),station_depart NVARCHAR(100),station_arrivee NVARCHAR(100),debut NVARCHAR(100),fin NVARCHAR(100),montant NVARCHAR(100),modifie_le NVARCHAR(100));\nIF OBJECT_ID('vct_stage.meteo') IS NULL CREATE TABLE vct_stage.meteo(date_meteo NVARCHAR(100),ville NVARCHAR(80),temperature NVARCHAR(100),precipitation NVARCHAR(100));\nIF OBJECT_ID('vct_stage.disponibilite') IS NULL CREATE TABLE vct_stage.disponibilite(stationcode NVARCHAR(80),nom NVARCHAR(240),capacite NVARCHAR(100),velos_disponibles NVARCHAR(100),bornes_disponibles NVARCHAR(100),observe_le NVARCHAR(100));\nIF OBJECT_ID('vct_source.meteo_demo') IS NULL CREATE TABLE vct_source.meteo_demo(date_meteo DATE PRIMARY KEY,ville NVARCHAR(40),temperature DECIMAL(5,2),precipitation DECIMAL(5,2));\nWITH n AS(SELECT TOP(8) ROW_NUMBER() OVER(ORDER BY(SELECT NULL))-1 n FROM sys.all_objects)\nINSERT vct_source.meteo_demo SELECT DATEADD(DAY,-CONVERT(INT,n),CONVERT(DATE,SYSUTCDATETIME())),'Paris',18-n*0.4,n%3 FROM n WHERE NOT EXISTS(SELECT 1 FROM vct_source.meteo_demo m WHERE m.date_meteo=DATEADD(DAY,-CONVERT(INT,n),CONVERT(DATE,SYSUTCDATETIME())));\nIF OBJECT_ID('vct_curated.abonnes') IS NULL CREATE TABLE vct_curated.abonnes(abonne_token VARCHAR(36) PRIMARY KEY,ville NVARCHAR(40),modifie_le DATETIME2,latest_run VARCHAR(64));\nIF OBJECT_ID('vct_curated.stations') IS NULL CREATE TABLE vct_curated.stations(station_id INT PRIMARY KEY,nom NVARCHAR(80),capacite INT,latest_run VARCHAR(64));\nIF OBJECT_ID('vct_curated.locations') IS NULL CREATE TABLE vct_curated.locations(location_id INT PRIMARY KEY,abonne_token VARCHAR(36),station_depart INT,station_arrivee INT,debut DATETIME2,fin DATETIME2,montant DECIMAL(6,2),modifie_le DATETIME2,latest_run VARCHAR(64));\nIF OBJECT_ID('vct_curated.meteo') IS NULL CREATE TABLE vct_curated.meteo(date_meteo DATE,ville NVARCHAR(40),temperature DECIMAL(5,2),precipitation DECIMAL(5,2),latest_run VARCHAR(64),PRIMARY KEY(date_meteo,ville));\nIF OBJECT_ID('vct_curated.disponibilite') IS NULL CREATE TABLE vct_curated.disponibilite(stationcode NVARCHAR(80),nom NVARCHAR(240),capacite INT,velos_disponibles INT,bornes_disponibles INT,observe_le DATETIME2,latest_run VARCHAR(64),PRIMARY KEY(stationcode,observe_le));\nIF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('vct_source.locations') AND name='IX_VCT_locations_modifie') CREATE INDEX IX_VCT_locations_modifie ON vct_source.locations(modifie_le);\nIF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('vct_source.abonnes') AND name='IX_VCT_abonnes_modifie') CREATE INDEX IX_VCT_abonnes_modifie ON vct_source.abonnes(modifie_le);\nIF DATABASE_PRINCIPAL_ID('vct_analyst') IS NULL CREATE ROLE vct_analyst;\nGRANT SELECT ON SCHEMA::vct_mart TO vct_analyst;\nDENY SELECT ON SCHEMA::vct_source TO vct_analyst;\nDENY SELECT ON SCHEMA::vct_stage TO vct_analyst;\nDENY SELECT ON SCHEMA::vct_private TO vct_analyst;\nDENY SELECT ON SCHEMA::vct_ops TO vct_analyst;\nSELECT 'VCT model ready' status;"
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:10:00"
+        }
+      },
+      {
+        "name": "InstallerControleEtFusion",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "PreparerTablesEtDroits",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "NonQuery",
+              "text": "CREATE OR ALTER PROCEDURE vct_ops.usp_ControlerEtFusionner @BatchId VARCHAR(64) AS\nBEGIN\n SET NOCOUNT ON; SET XACT_ABORT ON; BEGIN TRANSACTION;\n DELETE FROM vct_ops.QualityMetric WHERE run_id=@BatchId;\n DELETE FROM vct_ops.Quarantine WHERE run_id=@BatchId;\n INSERT vct_private.SubscriberMap(abonne_id)\n SELECT DISTINCT TRY_CONVERT(INT,a.abonne_id) FROM vct_stage.abonnes a\n WHERE TRY_CONVERT(INT,a.abonne_id) IS NOT NULL AND NOT EXISTS(SELECT 1 FROM vct_private.SubscriberMap m WHERE m.abonne_id=TRY_CONVERT(INT,a.abonne_id)) AND NOT EXISTS(SELECT 1 FROM vct_private.ErasureLedger e WHERE e.abonne_id=TRY_CONVERT(INT,a.abonne_id));\n ;WITH a AS(SELECT CONVERT(VARCHAR(36),m.abonne_token) abonne_token,LEFT(s.ville,40) ville,TRY_CONVERT(DATETIME2,s.modifie_le) modifie_le,ROW_NUMBER() OVER(PARTITION BY s.abonne_id ORDER BY TRY_CONVERT(DATETIME2,s.modifie_le) DESC) rn FROM vct_stage.abonnes s JOIN vct_private.SubscriberMap m ON m.abonne_id=TRY_CONVERT(INT,s.abonne_id) WHERE TRY_CONVERT(DATETIME2,s.modifie_le) IS NOT NULL AND NOT EXISTS(SELECT 1 FROM vct_private.ErasureLedger e WHERE e.abonne_id=m.abonne_id))\n MERGE vct_curated.abonnes WITH(HOLDLOCK) t USING(SELECT * FROM a WHERE rn=1)s ON t.abonne_token=s.abonne_token\n WHEN MATCHED AND s.modifie_le>=t.modifie_le THEN UPDATE SET ville=s.ville,modifie_le=s.modifie_le,latest_run=@BatchId\n WHEN NOT MATCHED THEN INSERT(abonne_token,ville,modifie_le,latest_run)VALUES(s.abonne_token,s.ville,s.modifie_le,@BatchId);\n ;WITH s AS(SELECT TRY_CONVERT(INT,station_id) station_id,LEFT(nom,80)nom,TRY_CONVERT(INT,capacite)capacite,ROW_NUMBER() OVER(PARTITION BY station_id ORDER BY nom)rn FROM vct_stage.stations)\n MERGE vct_curated.stations WITH(HOLDLOCK)t USING(SELECT * FROM s WHERE rn=1 AND station_id IS NOT NULL AND capacite>0)s ON t.station_id=s.station_id\n WHEN MATCHED THEN UPDATE SET nom=s.nom,capacite=s.capacite,latest_run=@BatchId\n WHEN NOT MATCHED THEN INSERT(station_id,nom,capacite,latest_run)VALUES(s.station_id,s.nom,s.capacite,@BatchId);\n SELECT s.*,TRY_CONVERT(INT,s.location_id)id,TRY_CONVERT(INT,s.abonne_id)aid,TRY_CONVERT(INT,s.station_depart)sd,TRY_CONVERT(INT,s.station_arrivee)sa,TRY_CONVERT(DATETIME2,s.debut)dt_debut,TRY_CONVERT(DATETIME2,s.fin)dt_fin,TRY_CONVERT(DECIMAL(6,2),s.montant)mt,TRY_CONVERT(DATETIME2,s.modifie_le)dt_modif,ROW_NUMBER() OVER(PARTITION BY s.location_id ORDER BY TRY_CONVERT(DATETIME2,s.modifie_le) DESC)rn INTO #Parsed FROM vct_stage.locations s;\n SELECT p.*,CASE\n WHEN NULLIF(LTRIM(RTRIM(location_id)),'') IS NULL OR NULLIF(LTRIM(RTRIM(abonne_id)),'') IS NULL OR NULLIF(LTRIM(RTRIM(debut)),'') IS NULL THEN 'completude: champ obligatoire absent'\n WHEN id IS NULL OR aid IS NULL OR sd IS NULL OR sa IS NULL OR dt_debut IS NULL OR dt_modif IS NULL OR mt IS NULL OR (fin IS NOT NULL AND dt_fin IS NULL) THEN 'validite: conversion impossible'\n WHEN rn>1 THEN 'unicite: doublon dans le lot'\n WHEN mt<0 OR dt_fin<dt_debut THEN 'validite: montant ou chronologie'\n WHEN NOT EXISTS(SELECT 1 FROM vct_private.SubscriberMap m WHERE m.abonne_id=p.aid) OR NOT EXISTS(SELECT 1 FROM vct_curated.stations st WHERE st.station_id=p.sd) OR NOT EXISTS(SELECT 1 FROM vct_curated.stations st WHERE st.station_id=p.sa) THEN 'coherence: reference absente'\n WHEN EXISTS(SELECT 1 FROM vct_private.ErasureLedger e WHERE e.abonne_id=p.aid) THEN 'confidentialite: abonne efface'\n END reason INTO #Checked FROM #Parsed p;\n INSERT vct_ops.Quarantine(run_id,entity,business_key,reason,payload)\n SELECT @BatchId,'locations',CONCAT(COALESCE(location_id,'NULL'),'#',rn),reason,(SELECT c.location_id,c.abonne_id,c.station_depart,c.station_arrivee,c.debut,c.fin,c.montant,c.modifie_le FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) FROM #Checked c WHERE reason IS NOT NULL;\n INSERT vct_ops.QualityMetric(run_id,entity,dimension,checked_rows,failed_rows)\n SELECT @BatchId,'locations',d.dimension,COUNT(*),COALESCE(SUM(CASE WHEN reason LIKE d.dimension+':%' THEN 1 ELSE 0 END),0) FROM #Checked CROSS JOIN(VALUES('completude'),('validite'),('unicite'),('coherence'))d(dimension) GROUP BY d.dimension;\n MERGE vct_curated.locations WITH(HOLDLOCK)t USING(SELECT c.id location_id,CONVERT(VARCHAR(36),m.abonne_token)abonne_token,c.sd station_depart,c.sa station_arrivee,c.dt_debut debut,c.dt_fin fin,c.mt montant,c.dt_modif modifie_le FROM #Checked c JOIN vct_private.SubscriberMap m ON m.abonne_id=c.aid WHERE reason IS NULL)s ON t.location_id=s.location_id\n WHEN MATCHED AND s.modifie_le>=t.modifie_le THEN UPDATE SET abonne_token=s.abonne_token,station_depart=s.station_depart,station_arrivee=s.station_arrivee,debut=s.debut,fin=s.fin,montant=s.montant,modifie_le=s.modifie_le,latest_run=@BatchId\n WHEN NOT MATCHED THEN INSERT(location_id,abonne_token,station_depart,station_arrivee,debut,fin,montant,modifie_le,latest_run)VALUES(s.location_id,s.abonne_token,s.station_depart,s.station_arrivee,s.debut,s.fin,s.montant,s.modifie_le,@BatchId);\n IF (SELECT COUNT(*) FROM #Checked)<>(SELECT COUNT(*) FROM #Checked WHERE reason IS NULL)+(SELECT COUNT(*) FROM #Checked WHERE reason IS NOT NULL) THROW 51001,'Reconciliation du lot impossible',1;\n ;WITH m AS(SELECT TRY_CONVERT(DATE,date_meteo)date_meteo,LEFT(ville,40)ville,TRY_CONVERT(DECIMAL(5,2),temperature)temperature,TRY_CONVERT(DECIMAL(5,2),precipitation)precipitation,ROW_NUMBER() OVER(PARTITION BY date_meteo,ville ORDER BY date_meteo)rn FROM vct_stage.meteo)\n MERGE vct_curated.meteo WITH(HOLDLOCK)t USING(SELECT * FROM m WHERE rn=1 AND date_meteo IS NOT NULL AND temperature IS NOT NULL AND precipitation>=0)s ON t.date_meteo=s.date_meteo AND t.ville=s.ville\n WHEN MATCHED THEN UPDATE SET temperature=s.temperature,precipitation=s.precipitation,latest_run=@BatchId\n WHEN NOT MATCHED THEN INSERT(date_meteo,ville,temperature,precipitation,latest_run)VALUES(s.date_meteo,s.ville,s.temperature,s.precipitation,@BatchId);\n ;WITH a AS(SELECT stationcode,nom,TRY_CONVERT(INT,capacite)capacite,TRY_CONVERT(INT,velos_disponibles)velos_disponibles,TRY_CONVERT(INT,bornes_disponibles)bornes_disponibles,CONVERT(DATETIME2,TRY_CONVERT(DATETIMEOFFSET,observe_le))observe_le,ROW_NUMBER() OVER(PARTITION BY stationcode,observe_le ORDER BY stationcode)rn FROM vct_stage.disponibilite)\n MERGE vct_curated.disponibilite WITH(HOLDLOCK)t USING(SELECT * FROM a WHERE rn=1 AND stationcode IS NOT NULL AND observe_le IS NOT NULL AND capacite>0 AND velos_disponibles>=0 AND bornes_disponibles>=0)s ON t.stationcode=s.stationcode AND t.observe_le=s.observe_le\n WHEN MATCHED THEN UPDATE SET nom=s.nom,capacite=s.capacite,velos_disponibles=s.velos_disponibles,bornes_disponibles=s.bornes_disponibles,latest_run=@BatchId\n WHEN NOT MATCHED THEN INSERT(stationcode,nom,capacite,velos_disponibles,bornes_disponibles,observe_le,latest_run)VALUES(s.stationcode,s.nom,s.capacite,s.velos_disponibles,s.bornes_disponibles,s.observe_le,@BatchId);\n UPDATE vct_ops.RunLog SET rows_read=(SELECT COUNT(*) FROM #Checked),rows_valid=(SELECT COUNT(*) FROM #Checked WHERE reason IS NULL),rows_rejected=(SELECT COUNT(*) FROM #Checked WHERE reason IS NOT NULL),status='Validated' WHERE run_id=@BatchId;\n COMMIT;\n SELECT dimension,checked_rows,failed_rows FROM vct_ops.QualityMetric WHERE run_id=@BatchId;\n SELECT 'locations_curated' entity,COUNT_BIG(*) row_count FROM vct_curated.locations;\nEND;"
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "DeposerFixtureMeteo",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "PreparerTablesEtDroits",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": "SELECT CONVERT(VARCHAR(10),date_meteo,23) date_meteo,ville,temperature,precipitation FROM vct_source.meteo_demo ORDER BY date_meteo",
+            "queryTimeout": "00:20:00",
+            "partitionOption": "None"
+          },
+          "sink": {
+            "type": "DelimitedTextSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "DelimitedTextWriteSettings",
+              "quoteAllText": true,
+              "fileExtension": ".csv"
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_source",
+              "Table": "meteo_demo"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_CSV",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-inbox",
+              "Directory": "meteo",
+              "File": "meteo_demo.csv"
+            }
+          }
+        ]
+      }
+    ],
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "Velocite",
+      "Setup"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:03Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

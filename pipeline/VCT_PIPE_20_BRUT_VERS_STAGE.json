@@ -1,0 +1,217 @@
+{
+  "name": "VCT_PIPE_20_BRUT_VERS_STAGE",
+  "properties": {
+    "description": "Lecture des lots raw vers staging SQL a types texte pour controles explicites. Staging technique rechargeable, aucun TRUNCATE en curated.",
+    "activities": [
+      {
+        "name": "ChargerStage_abonnes",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "ParquetSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "ParquetReadSettings"
+            }
+          },
+          "sink": {
+            "type": "AzureSqlSink",
+            "preCopyScript": "TRUNCATE TABLE vct_stage.abonnes",
+            "writeBehavior": "insert",
+            "sqlWriterUseTableLock": false
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_PARQUET",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('sql/abonnes/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "abonnes.parquet"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_stage",
+              "Table": "abonnes"
+            }
+          }
+        ]
+      },
+      {
+        "name": "ChargerStage_stations",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "ParquetSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "ParquetReadSettings"
+            }
+          },
+          "sink": {
+            "type": "AzureSqlSink",
+            "preCopyScript": "TRUNCATE TABLE vct_stage.stations",
+            "writeBehavior": "insert",
+            "sqlWriterUseTableLock": false
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_PARQUET",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('sql/stations/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "stations.parquet"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_stage",
+              "Table": "stations"
+            }
+          }
+        ]
+      },
+      {
+        "name": "ChargerStage_locations",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "ParquetSource",
+            "storeSettings": {
+              "type": "AzureBlobFSReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "ParquetReadSettings"
+            }
+          },
+          "sink": {
+            "type": "AzureSqlSink",
+            "preCopyScript": "TRUNCATE TABLE vct_stage.locations",
+            "writeBehavior": "insert",
+            "sqlWriterUseTableLock": false
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "VCT_DS_LAKE_PARQUET",
+            "type": "DatasetReference",
+            "parameters": {
+              "Container": "vct-raw",
+              "Directory": {
+                "value": "@concat('sql/locations/lot_id=',pipeline().parameters.BatchId)",
+                "type": "Expression"
+              },
+              "File": "locations.parquet"
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_stage",
+              "Table": "locations"
+            }
+          }
+        ]
+      }
+    ],
+    "concurrency": 1,
+    "parameters": {
+      "BatchId": {
+        "type": "string"
+      },
+      "UpperBound": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:04Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

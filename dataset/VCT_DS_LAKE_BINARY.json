@@ -1,0 +1,45 @@
+{
+  "name": "VCT_DS_LAKE_BINARY",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_LAKE",
+      "type": "LinkedServiceReference"
+    },
+    "parameters": {
+      "Container": {
+        "type": "string"
+      },
+      "Directory": {
+        "type": "string"
+      },
+      "File": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "Binary",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileName": {
+          "value": "@dataset().File",
+          "type": "Expression"
+        },
+        "folderPath": {
+          "value": "@dataset().Directory",
+          "type": "Expression"
+        },
+        "fileSystem": {
+          "value": "@dataset().Container",
+          "type": "Expression"
+        }
+      }
+    }
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

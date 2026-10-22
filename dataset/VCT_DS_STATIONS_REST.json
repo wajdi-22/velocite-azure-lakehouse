@@ -1,0 +1,30 @@
+{
+  "name": "VCT_DS_STATIONS_REST",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_STATIONS_API",
+      "type": "LinkedServiceReference"
+    },
+    "parameters": {
+      "Offset": {
+        "type": "int",
+        "defaultValue": 0
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "RestResource",
+    "typeProperties": {
+      "relativeUrl": {
+        "value": "@concat('records?limit=25&offset=',string(dataset().Offset),'&order_by=stationcode')",
+        "type": "Expression"
+      }
+    },
+    "schema": []
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

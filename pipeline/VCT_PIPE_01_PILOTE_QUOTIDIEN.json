@@ -1,0 +1,506 @@
+{
+  "name": "VCT_PIPE_01_PILOTE_QUOTIDIEN",
+  "properties": {
+    "description": "Pilote VELOCITE : collecte multi-sources, staging, qualite, publication Delta, agregats, puis validation des watermarks. Concurrence limitee a un lot.",
+    "activities": [
+      {
+        "name": "FixerFenetreDuLot",
+        "type": "Lookup",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": {
+              "value": "@concat('SET NOCOUNT ON; DECLARE @r varchar(64)=''',pipeline().RunId,'''; IF NOT EXISTS(SELECT 1 FROM vct_ops.RunLog WHERE run_id=@r) INSERT vct_ops.RunLog(run_id,started_at,status,upper_bound,details)VALUES(@r,SYSUTCDATETIME(),''Running'',SYSUTCDATETIME(),''VCT daily batch''); SELECT CONVERT(varchar(33),upper_bound,126) upper_bound FROM vct_ops.RunLog WHERE run_id=@r;')",
+              "type": "Expression"
+            },
+            "queryTimeout": "00:20:00",
+            "partitionOption": "None"
+          },
+          "dataset": {
+            "referenceName": "VCT_DS_SQL_TABLE",
+            "type": "DatasetReference",
+            "parameters": {
+              "Schema": "vct_ops",
+              "Table": "RunLog"
+            }
+          },
+          "firstRowOnly": true
+        }
+      },
+      {
+        "name": "CollecterSQL",
+        "type": "ExecutePipeline",
+        "dependsOn": [
+          {
+            "activity": "FixerFenetreDuLot",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "VCT_PIPE_10_SQL_VERS_BRUT",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "BatchId": {
+              "value": "@pipeline().RunId",
+              "type": "Expression"
+            },
+            "UpperBound": {
+              "value": "@activity('FixerFenetreDuLot').output.firstRow.upper_bound",
+              "type": "Expression"
+            }
+          }
+        }
+      },
+      {
+        "name": "CollecterSourcesExternes",
+        "type": "ExecutePipeline",
+        "dependsOn": [
+          {
+            "activity": "FixerFenetreDuLot",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "VCT_PIPE_15_SOURCES_EXTERNES",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "BatchId": {
+              "value": "@pipeline().RunId",
+              "type": "Expression"
+            },
+            "UpperBound": {
+              "value": "@activity('FixerFenetreDuLot').output.firstRow.upper_bound",
+              "type": "Expression"
+            }
+          }
+        }
+      },
+      {
+        "name": "ChargerStaging",
+        "type": "ExecutePipeline",
+        "dependsOn": [
+          {
+            "activity": "CollecterSQL",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "VCT_PIPE_20_BRUT_VERS_STAGE",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "BatchId": {
+              "value": "@pipeline().RunId",
+              "type": "Expression"
+            },
+            "UpperBound": {
+              "value": "@activity('FixerFenetreDuLot').output.firstRow.upper_bound",
+              "type": "Expression"
+            }
+          }
+        }
+      },
+      {
+        "name": "ControlerQualite",
+        "type": "ExecutePipeline",
+        "dependsOn": [
+          {
+            "activity": "ChargerStaging",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "CollecterSourcesExternes",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "VCT_PIPE_30_QUALITE_ET_FUSION",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "BatchId": {
+              "value": "@pipeline().RunId",
+              "type": "Expression"
+            },
+            "UpperBound": {
+              "value": "@activity('FixerFenetreDuLot').output.firstRow.upper_bound",
+              "type": "Expression"
+            }
+          }
+        }
+      },
+      {
+        "name": "PublierCurated",
+        "type": "ExecutePipeline",
+        "dependsOn": [
+          {
+            "activity": "ControlerQualite",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "VCT_PIPE_40_PUBLICATION_DELTA",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "BatchId": {
+              "value": "@pipeline().RunId",
+              "type": "Expression"
+            },
+            "UpperBound": {
+              "value": "@activity('FixerFenetreDuLot').output.firstRow.upper_bound",
+              "type": "Expression"
+            }
+          }
+        }
+      },
+      {
+        "name": "PublierConsommation",
+        "type": "ExecutePipeline",
+        "dependsOn": [
+          {
+            "activity": "PublierCurated",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "pipeline": {
+            "referenceName": "VCT_PIPE_50_CONSOMMATION",
+            "type": "PipelineReference"
+          },
+          "waitOnCompletion": true,
+          "parameters": {
+            "BatchId": {
+              "value": "@pipeline().RunId",
+              "type": "Expression"
+            },
+            "UpperBound": {
+              "value": "@activity('FixerFenetreDuLot').output.firstRow.upper_bound",
+              "type": "Expression"
+            }
+          }
+        }
+      },
+      {
+        "name": "ValiderWatermarks",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "PublierConsommation",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('SET XACT_ABORT ON; BEGIN TRANSACTION; UPDATE w SET last_success=CASE WHEN r.upper_bound>w.last_success THEN r.upper_bound ELSE w.last_success END FROM vct_ops.Watermark w CROSS JOIN vct_ops.RunLog r WHERE r.run_id=''',pipeline().RunId,''' AND w.entity IN(''abonnes'',''locations''); UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Succeeded'',details=''SQL, CSV, REST, qualite, Delta et consommation publies'' WHERE run_id=''',pipeline().RunId,'''; COMMIT; SELECT run_id,status,rows_read,rows_valid,rows_rejected FROM vct_ops.RunLog WHERE run_id=''',pipeline().RunId,''';')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "JournaliserEchec_CollecterSQL",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "CollecterSQL",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Failed'',details=''Echec CollecterSQL : consulter les sorties ADF'' WHERE run_id=''',pipeline().RunId,'''; THROW 51099,''VCT: echec du lot, watermark non avance'',1;')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "JournaliserEchec_CollecterSourcesExternes",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "CollecterSourcesExternes",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Failed'',details=''Echec CollecterSourcesExternes : consulter les sorties ADF'' WHERE run_id=''',pipeline().RunId,'''; THROW 51099,''VCT: echec du lot, watermark non avance'',1;')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "JournaliserEchec_ChargerStaging",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "ChargerStaging",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Failed'',details=''Echec ChargerStaging : consulter les sorties ADF'' WHERE run_id=''',pipeline().RunId,'''; THROW 51099,''VCT: echec du lot, watermark non avance'',1;')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "JournaliserEchec_ControlerQualite",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "ControlerQualite",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Failed'',details=''Echec ControlerQualite : consulter les sorties ADF'' WHERE run_id=''',pipeline().RunId,'''; THROW 51099,''VCT: echec du lot, watermark non avance'',1;')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "JournaliserEchec_PublierCurated",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "PublierCurated",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Failed'',details=''Echec PublierCurated : consulter les sorties ADF'' WHERE run_id=''',pipeline().RunId,'''; THROW 51099,''VCT: echec du lot, watermark non avance'',1;')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      },
+      {
+        "name": "JournaliserEchec_PublierConsommation",
+        "type": "Script",
+        "dependsOn": [
+          {
+            "activity": "PublierConsommation",
+            "dependencyConditions": [
+              "Failed"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "linkedServiceName": {
+          "referenceName": "VCT_LS_SQL",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "scripts": [
+            {
+              "type": "Query",
+              "text": {
+                "value": "@concat('UPDATE vct_ops.RunLog SET ended_at=SYSUTCDATETIME(),status=''Failed'',details=''Echec PublierConsommation : consulter les sorties ADF'' WHERE run_id=''',pipeline().RunId,'''; THROW 51099,''VCT: echec du lot, watermark non avance'',1;')",
+                "type": "Expression"
+              }
+            }
+          ],
+          "scriptBlockExecutionTimeout": "00:20:00"
+        }
+      }
+    ],
+    "concurrency": 1,
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:05Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

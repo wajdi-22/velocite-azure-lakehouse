@@ -1,0 +1,355 @@
+{
+  "name": "VCT_FLOW_40_PUBLICATION_DELTA",
+  "properties": {
+    "description": "Publication des donnees controlees en tables Delta. Upsert par cle stable ; donnees personnelles directes exclues.",
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "type": "MappingDataFlow",
+    "typeProperties": {
+      "sources": [
+        {
+          "dataset": {
+            "referenceName": "VCT_DS_SQL_PREP_ABONNES",
+            "type": "DatasetReference"
+          },
+          "name": "srcabonnes"
+        },
+        {
+          "dataset": {
+            "referenceName": "VCT_DS_SQL_PREP_STATIONS",
+            "type": "DatasetReference"
+          },
+          "name": "srcstations"
+        },
+        {
+          "dataset": {
+            "referenceName": "VCT_DS_SQL_PREP_LOCATIONS",
+            "type": "DatasetReference"
+          },
+          "name": "srclocations"
+        },
+        {
+          "dataset": {
+            "referenceName": "VCT_DS_SQL_PREP_METEO",
+            "type": "DatasetReference"
+          },
+          "name": "srcmeteo"
+        },
+        {
+          "dataset": {
+            "referenceName": "VCT_DS_SQL_PREP_DISPONIBILITE",
+            "type": "DatasetReference"
+          },
+          "name": "srcdisponibilite"
+        }
+      ],
+      "sinks": [
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "deltaabonnes"
+        },
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "deltastations"
+        },
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "deltalocations"
+        },
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "deltameteo"
+        },
+        {
+          "linkedService": {
+            "referenceName": "VCT_LS_LAKE",
+            "type": "LinkedServiceReference"
+          },
+          "name": "deltadisponibilite"
+        }
+      ],
+      "transformations": [
+        {
+          "name": "lotabonnes"
+        },
+        {
+          "name": "upsertabonnes"
+        },
+        {
+          "name": "lotstations"
+        },
+        {
+          "name": "upsertstations"
+        },
+        {
+          "name": "lotlocations"
+        },
+        {
+          "name": "upsertlocations"
+        },
+        {
+          "name": "lotmeteo"
+        },
+        {
+          "name": "upsertmeteo"
+        },
+        {
+          "name": "lotdisponibilite"
+        },
+        {
+          "name": "upsertdisponibilite"
+        }
+      ],
+      "scriptLines": [
+        "parameters{",
+        "     BatchId as string",
+        "}",
+        "source(output(",
+        "          abonne_token as string,",
+        "          ville as string,",
+        "          modifie_le as timestamp,",
+        "          latest_run as string",
+        "     ),",
+        "     allowSchemaDrift: false,",
+        "     validateSchema: true,",
+        "     isolationLevel: 'READ_COMMITTED',",
+        "     format: 'table') ~> srcabonnes",
+        "source(output(",
+        "          station_id as integer,",
+        "          nom as string,",
+        "          capacite as integer,",
+        "          latest_run as string",
+        "     ),",
+        "     allowSchemaDrift: false,",
+        "     validateSchema: true,",
+        "     isolationLevel: 'READ_COMMITTED',",
+        "     format: 'table') ~> srcstations",
+        "source(output(",
+        "          location_id as integer,",
+        "          abonne_token as string,",
+        "          station_depart as integer,",
+        "          station_arrivee as integer,",
+        "          debut as timestamp,",
+        "          fin as timestamp,",
+        "          montant as decimal(6,2),",
+        "          modifie_le as timestamp,",
+        "          latest_run as string",
+        "     ),",
+        "     allowSchemaDrift: false,",
+        "     validateSchema: true,",
+        "     isolationLevel: 'READ_COMMITTED',",
+        "     format: 'table') ~> srclocations",
+        "source(output(",
+        "          date_meteo as date,",
+        "          ville as string,",
+        "          temperature as decimal(5,2),",
+        "          precipitation as decimal(5,2),",
+        "          latest_run as string",
+        "     ),",
+        "     allowSchemaDrift: false,",
+        "     validateSchema: true,",
+        "     isolationLevel: 'READ_COMMITTED',",
+        "     format: 'table') ~> srcmeteo",
+        "source(output(",
+        "          stationcode as string,",
+        "          nom as string,",
+        "          capacite as integer,",
+        "          velos_disponibles as integer,",
+        "          bornes_disponibles as integer,",
+        "          observe_le as timestamp,",
+        "          latest_run as string",
+        "     ),",
+        "     allowSchemaDrift: false,",
+        "     validateSchema: true,",
+        "     isolationLevel: 'READ_COMMITTED',",
+        "     format: 'table') ~> srcdisponibilite",
+        "srcabonnes filter(latest_run == $BatchId) ~> lotabonnes",
+        "lotabonnes alterRow(upsertIf(true())) ~> upsertabonnes",
+        "srcstations filter(latest_run == $BatchId) ~> lotstations",
+        "lotstations alterRow(upsertIf(true())) ~> upsertstations",
+        "srclocations filter(latest_run == $BatchId) ~> lotlocations",
+        "lotlocations alterRow(upsertIf(true())) ~> upsertlocations",
+        "srcmeteo filter(latest_run == $BatchId) ~> lotmeteo",
+        "lotmeteo alterRow(upsertIf(true())) ~> upsertmeteo",
+        "srcdisponibilite filter(latest_run == $BatchId) ~> lotdisponibilite",
+        "lotdisponibilite alterRow(upsertIf(true())) ~> upsertdisponibilite",
+        "upsertabonnes sink(allowSchemaDrift: false,",
+        "     validateSchema: false,",
+        "     input(",
+        "          abonne_token as string,",
+        "          ville as string,",
+        "          modifie_le as timestamp",
+        "     ),",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-curated',",
+        "     folderPath: 'abonnes',",
+        "     mergeSchema: false,",
+        "     autoCompact: true,",
+        "     optimizedWrite: true,",
+        "     vacuum: 0,",
+        "     deletable: false,",
+        "     insertable: true,",
+        "     updateable: true,",
+        "     upsertable: true,",
+        "     keys:['abonne_token'],",
+        "     umask: 0022,",
+        "     preCommands: [],",
+        "     postCommands: [],",
+        "     skipDuplicateMapInputs: true,",
+        "     skipDuplicateMapOutputs: true,",
+        "     mapColumn(",
+        "          abonne_token,",
+        "          ville,",
+        "          modifie_le",
+        "     )) ~> deltaabonnes",
+        "upsertstations sink(allowSchemaDrift: false,",
+        "     validateSchema: false,",
+        "     input(",
+        "          station_id as integer,",
+        "          nom as string,",
+        "          capacite as integer",
+        "     ),",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-curated',",
+        "     folderPath: 'stations',",
+        "     mergeSchema: false,",
+        "     autoCompact: true,",
+        "     optimizedWrite: true,",
+        "     vacuum: 0,",
+        "     deletable: false,",
+        "     insertable: true,",
+        "     updateable: true,",
+        "     upsertable: true,",
+        "     keys:['station_id'],",
+        "     umask: 0022,",
+        "     preCommands: [],",
+        "     postCommands: [],",
+        "     skipDuplicateMapInputs: true,",
+        "     skipDuplicateMapOutputs: true,",
+        "     mapColumn(",
+        "          station_id,",
+        "          nom,",
+        "          capacite",
+        "     )) ~> deltastations",
+        "upsertlocations sink(allowSchemaDrift: false,",
+        "     validateSchema: false,",
+        "     input(",
+        "          location_id as integer,",
+        "          abonne_token as string,",
+        "          station_depart as integer,",
+        "          station_arrivee as integer,",
+        "          debut as timestamp,",
+        "          fin as timestamp,",
+        "          montant as decimal(6,2),",
+        "          modifie_le as timestamp",
+        "     ),",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-curated',",
+        "     folderPath: 'locations',",
+        "     mergeSchema: false,",
+        "     autoCompact: true,",
+        "     optimizedWrite: true,",
+        "     vacuum: 0,",
+        "     deletable: false,",
+        "     insertable: true,",
+        "     updateable: true,",
+        "     upsertable: true,",
+        "     keys:['location_id'],",
+        "     umask: 0022,",
+        "     preCommands: [],",
+        "     postCommands: [],",
+        "     skipDuplicateMapInputs: true,",
+        "     skipDuplicateMapOutputs: true,",
+        "     mapColumn(",
+        "          location_id,",
+        "          abonne_token,",
+        "          station_depart,",
+        "          station_arrivee,",
+        "          debut,",
+        "          fin,",
+        "          montant,",
+        "          modifie_le",
+        "     )) ~> deltalocations",
+        "upsertmeteo sink(allowSchemaDrift: false,",
+        "     validateSchema: false,",
+        "     input(",
+        "          date_meteo as date,",
+        "          ville as string,",
+        "          temperature as decimal(5,2),",
+        "          precipitation as decimal(5,2)",
+        "     ),",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-curated',",
+        "     folderPath: 'meteo',",
+        "     mergeSchema: false,",
+        "     autoCompact: true,",
+        "     optimizedWrite: true,",
+        "     vacuum: 0,",
+        "     deletable: false,",
+        "     insertable: true,",
+        "     updateable: true,",
+        "     upsertable: true,",
+        "     keys:['date_meteo','ville'],",
+        "     umask: 0022,",
+        "     preCommands: [],",
+        "     postCommands: [],",
+        "     skipDuplicateMapInputs: true,",
+        "     skipDuplicateMapOutputs: true,",
+        "     mapColumn(",
+        "          date_meteo,",
+        "          ville,",
+        "          temperature,",
+        "          precipitation",
+        "     )) ~> deltameteo",
+        "upsertdisponibilite sink(allowSchemaDrift: false,",
+        "     validateSchema: false,",
+        "     input(",
+        "          stationcode as string,",
+        "          nom as string,",
+        "          capacite as integer,",
+        "          velos_disponibles as integer,",
+        "          bornes_disponibles as integer,",
+        "          observe_le as timestamp",
+        "     ),",
+        "     format: 'delta',",
+        "     fileSystem: 'vct-curated',",
+        "     folderPath: 'disponibilite',",
+        "     mergeSchema: false,",
+        "     autoCompact: true,",
+        "     optimizedWrite: true,",
+        "     vacuum: 0,",
+        "     deletable: false,",
+        "     insertable: true,",
+        "     updateable: true,",
+        "     upsertable: true,",
+        "     keys:['stationcode','observe_le'],",
+        "     umask: 0022,",
+        "     preCommands: [],",
+        "     postCommands: [],",
+        "     skipDuplicateMapInputs: true,",
+        "     skipDuplicateMapOutputs: true,",
+        "     mapColumn(",
+        "          stationcode,",
+        "          nom,",
+        "          capacite,",
+        "          velos_disponibles,",
+        "          bornes_disponibles,",
+        "          observe_le",
+        "     )) ~> deltadisponibilite"
+      ]
+    }
+  }
+}

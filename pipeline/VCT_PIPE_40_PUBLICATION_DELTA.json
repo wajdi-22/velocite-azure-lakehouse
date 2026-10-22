@@ -1,0 +1,55 @@
+{
+  "name": "VCT_PIPE_40_PUBLICATION_DELTA",
+  "properties": {
+    "description": "Publication transactionnelle en Delta apres controles SQL. Calcul ADF Data Flow a la demande.",
+    "activities": [
+      {
+        "name": "PublierTablesDelta",
+        "type": "ExecuteDataFlow",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.00:30:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureOutput": false,
+          "secureInput": false
+        },
+        "userProperties": [],
+        "typeProperties": {
+          "dataflow": {
+            "referenceName": "VCT_FLOW_40_PUBLICATION_DELTA",
+            "type": "DataFlowReference",
+            "parameters": {
+              "BatchId": {
+                "value": "@concat('''',pipeline().parameters.BatchId,'''')",
+                "type": "Expression"
+              }
+            }
+          },
+          "compute": {
+            "coreCount": 8,
+            "computeType": "General"
+          },
+          "traceLevel": "Fine"
+        }
+      }
+    ],
+    "concurrency": 1,
+    "parameters": {
+      "BatchId": {
+        "type": "string"
+      },
+      "UpperBound": {
+        "type": "string"
+      }
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "lastPublishTime": "2026-10-22T15:01:04Z"
+  },
+  "type": "Microsoft.DataFactory/factories/pipelines"
+}

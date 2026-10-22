@@ -1,0 +1,22 @@
+{
+  "name": "VCT_DS_SQL_PREP_LOCATIONS",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_SQL",
+      "type": "LinkedServiceReference"
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "AzureSqlTable",
+    "schema": [],
+    "typeProperties": {
+      "schema": "vct_curated",
+      "table": "locations"
+    }
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

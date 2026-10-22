@@ -1,0 +1,22 @@
+{
+  "name": "VCT_DS_SQL_PREP_METEO",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_SQL",
+      "type": "LinkedServiceReference"
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "AzureSqlTable",
+    "schema": [],
+    "typeProperties": {
+      "schema": "vct_curated",
+      "table": "meteo"
+    }
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

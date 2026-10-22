@@ -1,0 +1,22 @@
+{
+  "name": "VCT_DS_SQL_PREP_ABONNES",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "VCT_LS_SQL",
+      "type": "LinkedServiceReference"
+    },
+    "folder": {
+      "name": "VELOCITE"
+    },
+    "annotations": [
+      "VELOCITE"
+    ],
+    "type": "AzureSqlTable",
+    "schema": [],
+    "typeProperties": {
+      "schema": "vct_curated",
+      "table": "abonnes"
+    }
+  },
+  "type": "Microsoft.DataFactory/factories/datasets"
+}

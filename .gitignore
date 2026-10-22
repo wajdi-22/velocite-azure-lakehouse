@@ -1,0 +1,5 @@
+.env
+*.parameters.private.json
+*credentials*
+*secret*.local.*
+__pycache__/
